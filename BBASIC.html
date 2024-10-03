@@ -1,0 +1,1987 @@
+<html>
+   <head>
+      <title>
+         Browser BASIC/Home Automation
+      </title>
+<!--
+  hueGUI.html
+  -->
+
+<!------------------------------------------------------------------------------
+  Revision History
+  ~~~~~~~~~~~~~~~~
+  08 Feb 2019 MDS - Added line number padding to BASICI.list() so
+                    line numbers are right justified (and indentation in source 
+                    files is preserved).  Modified BASICI.parseIf() and 
+                    BASICI.parseElse() functions to suit.
+                  - Changed console font from "bold 20px/20px monospace" to
+                    "15px monospace" in Console.js (three instances)
+                  - Changed console size from 80 col x 26 rows to 120 col x 38 
+                    lines
+                  - Added code to allow BASIC program loading from client side
+                  - Split private functions out of BASICI.js into 
+                    BASICI.Private.js to reduce file size.
+                  - Fixed bug where support for "'" character was not working
+                  - Added support for blank lines in the program files
+
+ ------------------------------------------------------------------------------
+ -->
+      <meta http-equiv="X-UA-Compatible" content="IE=Edge"/>
+      <script src="Console/Console.js"></script>
+      <script src="Scanner/Scanner.js"></script>
+      <script src="BASICI/BASICI.js"></script>
+      <script src="BASICI/BASICI.Private1.js"></script>
+      <script src="BASICI/BASICI.Private2.js"></script>
+   </head>
+
+   <body style="text-align: center">
+      <h2>
+        Browser BASIC / Home Automation
+      </h2>
+      <p>
+        This code is based upon the good work by <a href = "http://www.informit.com/authors/bio/38e79a1e-5358-4f08-bf60-ed3dd1614e0d">Jeff Friesen</a>, whose article is <a href = "http://www.informit.com/articles/article.aspx?p=2262894">here</a>.
+      </p>
+
+      <script> 
+        // 
+        // This script was added 8 Feb 2020 MDS to allow the browser to open a 
+        // BASIC program file with client side scripting only (ie no PHP)
+        //
+        // Programatically add a file type input box and hide it - all files
+        // for inclusion must be user initiated so we initiate a click event 
+        // on this input programatically
+        var fileInput=document.createElement('input');
+        fileInput.type="file";
+        fileInput.id = "fileInput";
+        document.body.appendChild(fileInput);
+        // Hide the file input box
+        fileInput.style.position = 'fixed';
+        fileInput.style.top = -1000;
+        document.getElementById('fileInput').addEventListener('change', 
+            readSingleFile, true);
+
+        //
+        // --------------------------------------------------------------------
+        // Loads a BASIC program into the interpreter memory
+        function loadProgram(contents) {
+          var num = 10;
+
+          BASICI.new();
+          lines = contents.split("\n");
+
+          for (var i = 0; i < lines.length; i++)
+          {
+            if (lines[i].trim().length == 0)
+               continue;
+
+            lines[i] = lines[i].replace(/\s+$/,""); // Right trim
+            BASICI.addLine(num, lines[i].replace(/\\"/g, '"'));
+            num += 10;
+          }
+          return;
+        }
+        //
+        // --------------------------------------------------------------------
+        //
+        function readSingleFile(evt) {
+          //Retrieve the first (and only!) File from the FileList object
+          var f = evt.target.files[0]; 
+
+          document.getElementById('screen').focus();
+          if (f) {
+            var r = new FileReader();
+            r.readAsText(f);
+            r.onload = function(e) { 
+              loadProgram(e.target.result);
+              mode = 0; // Return to run mode
+              Console.echo(" \"" + evt.target.files[0].name + "\" loaded successfully\n>");
+              // The following is so that the change event picks it up if we select the same file again
+              document.getElementById('fileInput').value=""; 
+            }
+          } else { 
+            mode = 0; // Return to run mode
+            Console.echo(" Program file input failed.  Please try again.\n>");
+            // The following is so that the change event picks it up if we select the same file again
+            document.getElementById('fileInput').value=""; 
+          }
+        }
+        //
+        // --------------------------------------------------------------------
+        //
+      </script>
+
+      <canvas id="screen">
+      HTML5 canvas element not supported by this browser.
+      </canvas>
+
+      <p>
+      You might have to press the Tab key or click the canvas to give it 
+      keyboard focus.
+      </p>
+
+      <script>
+         var help = 
+             "Browser BASIC HELP\n" +
+             "====================\n\n" +
+             "Browser BASIC (BBASIC) is a JavaScript-based implementation\n" +
+             "of the BASIC language for the browser. A BBASIC program\n" +
+             "consists of a line-oriented sequence of statements with one\n" +
+             "statement per line. Lines start with integer numbers.\n\n" +
+             "EXAMPLE:\n\n" +
+             "100 REM READDATA.BAS\n" +
+             "110 CURSOR OFF\n" +
+             "120 DATA \"The\", \"quick\", \"brown\", \"fox\",\n" +
+             "130 DATA \"jumped\", \"over\", \"the\", \"lazy\",\n" +
+             "140 DATA \"dog.\", \"\"\n" +
+             "150 DIM word$\n" +
+             "160 REPEAT\n" +
+             "170 READ word$\n" +
+             "180 IF word$ <> \"\" THEN\n" +
+             "190 PRINT word$\n" +
+             "200 ENDIF\n" +
+             "210 UNTIL word$ = \"\"\n\n" +
+             "Type HELP 2 to move to Page 2.\n\n";
+
+         var help2 = 
+             "Browser BASIC HELP (2)\n" +
+             "========================\n\n" +
+             "BBASIC provides comments, identifiers (and reserved words),\n" +
+             "types, literals, variables, and other fundamental language\n" +
+             "features.\n\n" +
+             "Comments start with REM or '. A REM-based comment spans the\n" +
+             "entire line, whereas a '-based comment follows the current\n" +
+             "statement (on the same line).\n\n" +
+             "Identifiers name labels (colon-suffixed identifiers that\n" +
+             "are CALL statement targets), reserved words (HELP 6, HELP 7\n" +
+             "HELP 8), and variables; begin with a letter or _; continue\n" +
+             "with letters/digits/_; may end with a $; and (except for\n" +
+             "reserved words) are case-sensitive.\n\n" +
+             "Types define data items for processing. BBASIC supports the\n" +
+             "number and string types. Number supports floating-point\n" +
+             "values and an integer subset that ranges from -2147483648\n" +
+             "through 2147483647. String supports arbitrary sequences of\n" +
+             "characters. Unicode is not supported at this time.\n\n" +
+             "Type HELP 3 to move to Page 3.\n\n";
+
+         var help3 =
+             "Browser BASIC HELP (3)\n" +
+             "========================\n\n" +
+             "Literals offer the character representations of number and\n" +
+             "string values. Number literals may be positive or negative,\n" +
+             "and can include a decimal point but no exponent. String\n" +
+             "literals are sequences of characters between double quotes.\n\n" +
+             "Variables store data items and must be defined (via DIM)\n" +
+             "before access; they can be redefined at any time (via DIM).\n" +
+             "String variable names are suffixed with the $.\n\n" +
+             "You can create scalar or 1-/2-dimensional array variables\n" +
+             "of number or string type. You can explicitly initialize a\n" +
+             "scalar variable but not an array variable. The length of an\n" +
+             "array dimension must be 1 or higher.\n\n" +
+             "Expressions are sequences of data items and operators that\n" +
+             "manipulate the data items. Numeric, string, relational, and\n" +
+             "Boolean expressions are supported.\n\n" +
+             "Type HELP 4 to move to Page 4.\n\n";
+
+         var help4 =
+             "Browser BASIC HELP (4)\n" +
+             "========================\n\n" +
+             "Numeric expressions consist of numeric literals, variables,\n" +
+             "functions, subexpressions (in parentheses), and operators +\n" +
+             "(unary, addition), - (negation, subtraction), *, /, and %.\n" +
+             "Integer functions expecting integer arguments (e.g., RND())\n" +
+             "and receiving nonintegers report errors.\n\n" +
+             "String expressions consist of string literals, variables,\n" +
+             "functions, subexpressions (in parentheses), and operator +\n" +
+             "(string concatenation).\n\n" +
+             "Relational expressions consist of number/string expressions\n" +
+             "and operators =, <>, <, <=, >, and >=. Each operator's two\n" +
+             "operands must be of the same type.\n\n" +
+             "Boolean expressions consist of relational expressions;\n" +
+             "subexpressions (in parentheses); TRUE; FALSE; operators\n" +
+             "NOT, AND, and OR (AND and OR don't short circuit the\n" +
+             "evaluation of their operands); and functions ISINF, ISNAN,\n" +
+             "ISNINF, and ISPINF.\n\n" +
+             "Type HELP 5 to move to Page 5.\n\n";
+
+         var help5 =
+             "Browser BASIC HELP (5)\n" +
+             "========================\n\n" +
+             "The first array element/string character is at position 0.\n\n" +
+             "You can press the Esc key at any time to cancel the current\n" +
+             "input (via the INPUT statement) or to terminate a running\n" +
+             "program. The program does not end when Esc is pressed while\n" +
+             "input (via INPUT) is in progress.\n\n" +
+             "Type HELP 6 to move to Page 6.\n\n";
+
+         var help6 = 
+             "Browser BASIC HELP (6)\n" +
+             "========================\n\n" +
+             "BBASIC supports the following commands:\n\n" +
+             "CLS       FILES     HELP      KILL      LIST      LOAD\n" +
+             "NEW       RENUM     RUN       SAVE\n\n" +
+             "BBASIC reserves these identifiers for its own use. They are\n" +
+             "unavailable for naming variables and labels.\n\n" +
+             "Type HELP followed by one of these identifiers for specific\n" +
+             "help (e.g., HELP FILES).\n\n" +
+             "Type HELP 7 to move to Page 7.\n\n";
+
+         var help7 = 
+             "Browser BASIC HELP (7)\n" +
+             "========================\n\n" +
+             "BBASIC supports the following statements:\n\n" +
+             "CALL      CLS       CURSOR    DATA      DIM       ELSE\n" +
+             "END       ENDIF     ENDWHILE  FOR       GRAPHICS  IF\n" +
+             "INPUT     LOCATE    NEXT      PRINT     READ      REM\n" +
+             "REPEAT    RETURN    UNTIL     WHILE\n\n" +
+             "Additional statements include assignment and label.\n\n" +
+             "BBASIC reserves these identifiers for its own use. They are\n" +
+             "unavailable for naming variables and labels.\n\n" +
+             "Type HELP followed by one of these identifiers for specific\n" +
+             "help (e.g., HELP WHILE).\n\n" +
+             "Type HELP 8 to move to Page 8.\n\n";
+
+         var help8 = 
+             "Browser BASIC HELP (8)\n" +
+             "========================\n\n" +
+             "BBASIC supports the following functions:\n\n" +
+             "ABS       ACOS      ASC       ASIN      ATAN      BROWSER$\n" +
+             "CEIL      CHR$      COS       DATETIME$ EXP       FLOOR\n" +
+             "HEX$      INKEY$    INSTR     ISINF     ISNAN     ISNINF\n" +
+             "ISPINF    LCASE$    LEFT$     LEN       LENGTH    LOG\n" +
+             "MID$      PI        POW       RANDOM    RIGHT$    RND\n" +
+             "ROUND     SCREEN    SGN       SIN       SQRT      STR$\n" +
+             "STRING$   TAN       TODEGREES TORADIANS TRIM$     TRUNC\n" +
+             "UCASE$    VAL\n\n" +
+             "BBASIC reserves these identifiers for its own use. They are\n" +
+             "unavailable for naming variables and labels.\n\n" +
+             "Type HELP followed by one of these identifiers for specific\n" +
+             "help (e.g., HELP INKEY$).\n\n";
+
+         var help_abs =
+             "ABS: obtain absolute value\n\n" +
+             "Syntax: ABS(numexpr)\n\n" +
+             "Obtain absolute value of numexpr.\n\n" +
+             "Example: PRINT ABS(-1) 'Output: 1\n\n" +
+             "See also: SGN\n\n";
+
+         var help_acos =
+             "ACOS: obtain arccosine value\n\n" +
+             "Syntax: ACOS(numexpr)\n\n" +
+             "Obtain arccosine of numexpr as a value between 0 and PI\n" +
+             "radians. NaN returns when numexpr is outside the range -1\n" +
+             "to 1. This function returns PI when passed -1.\n\n" +
+             "Example: PRINT ACOS(-1.0) 'Output: ~ 3.14159\n\n" +
+             "See also: ASIN, ATAN, COS, SIN, TAN\n\n";
+
+         var help_asc =
+             "ASC: obtain ASCII value\n\n" +
+             "Syntax: ASC(strexpr)\n\n" +
+             "Obtain ASCII value of leftmost character in strexpr.\n\n" +
+             "Example: PRINT ASC(\"abc\") 'Output: 97\n\n" +
+             "See also: CHR$\n\n";
+
+         var help_asin =
+             "ASIN: obtain arcsine value\n\n" +
+             "Syntax: ASIN(numexpr)\n\n" +
+             "Obtain arcsine of numexpr as a value between -PI/2 and PI/2\n" +
+             "radians. NaN returns when numexpr is outside the range -1\n" +
+             "to 1. This function returns PI/2 when passed 1.\n\n" +
+             "Example: PRINT ASIN(1.0) 'Output: ~ 1.57079\n\n" +
+             "See also: ACOS, ATAN, COS, SIN, TAN\n\n";
+
+         var help_atan =
+             "ATAN: obtain arctangent value\n\n" +
+             "Syntax: ATAN(numexpr)\n\n" +
+             "Obtain arctangent of numexpr as a value between -PI/2 and\n" +
+             "PI/2 radians.\n\n" +
+             "Example: PRINT ATAN(0.0) 'Output: 0\n\n" +
+             "See also: ACOS, ASIN, COS, SIN, TAN\n\n";
+
+         var help_browser =
+             "BROWSER$: obtain browser information\n\n" +
+             "Syntax: BROWSER$(intexpr)\n\n" +
+             "Obtain value of navigator.appName when intexpr is 0, value\n" +
+             "of navigator.appVersion when intexpr is 1, and value of\n" +
+             "navigator.userAgent when intexpr is 2.\n\n" +
+             "Example: PRINT BROWSER$(0)\n\n";
+
+         var help_call =
+             "CALL: transfer execution to subroutine\n\n" +
+             "Syntax: CALL id\n\n" +
+             "Transfer execution to subroutine located at identifier id.\n\n" +
+             "Example: CALL sort\n\n" +
+             "See also: RETURN\n\n";
+
+         var help_ceil =
+             "CEIL: round upwards to nearest integer\n\n" +
+             "Syntax: CEIL(numexpr)\n\n" +
+             "Round numexpr upwards to nearest integer.\n\n" +
+             "Example: PRINT CEIL(99.1) 'Output: 100\n" +
+             "Example: PRINT CEIL(-99.1) 'Output: -99\n\n" +
+             "See also: FLOOR, ROUND, TRUNC\n\n";
+
+         var help_chr = 
+             "CHR$: obtain string value\n\n" +
+             "Syntax: CHR$(intexpr)\n\n" +
+             "Obtain string value of intexpr, which must be a positive\n" +
+             "integer representing a valid code point.\n\n" +
+             "Example: PRINT CHR$(65) 'Output: A\n\n" +
+             "See also: ASC\n\n";
+
+         var help_cls =
+             "CLS: clear the screen\n\n" +
+             "Syntax: CLS\n\n" +
+             "Clear the screen. You can either execute CLS at the\n" +
+             "interpreter command line or embed CLS in a program.\n\n" +
+             "Example: CLS\n\n";
+
+         var help_cos =
+             "COS: obtain cosine value\n\n" +
+             "Syntax: COS(numexpr)\n\n" +
+             "Obtain cosine of numexpr, which must be specified in\n" +
+             "radians.\n\n" +
+             "Example: PRINT COS(3.14159) 'Output: ~ -1.0\n\n" +
+             "See also: ACOS, ASIN, ATAN, SIN, TAN\n\n";
+
+         var help_cursor =
+             "CURSOR: show or hide the cursor\n\n" +
+             "Syntax: CURSOR (ON | OFF)\n\n" +
+             "Show or hide the flashing underline cursor. CURSOR ON shows\n" +
+             "the cursor; CURSOR OFF hides the cursor.\n\n" +
+             "Example: CURSOR OFF\n\n";
+
+         var help_data = 
+             "DATA: define one or more literal values\n\n" +
+             "Syntax: DATA ([+ | -] (fltlit | intlit) | strlit)\n" +
+             "             [(, ([+ | -] (fltlit | intlit) |\n" +
+             "             strlit))+] [,]\n\n" +
+             "Define one or more float, integer, or string literal\n" +
+             "values, where each value must be separated from its\n" +
+             "predecessor via a comma. A comma may follow the last\n" +
+             "literal.\n\n" +
+             "Example: DATA \"abc\", 25, 32.5\n\n" +
+             "See also: READ\n\n";
+
+         var help_datetime =
+             "DATETIME$: obtain human-readable date/time info\n\n" +
+             "Syntax: DATETIME$(intexpr)\n\n" +
+             "Obtain human-readable date/time info for the current date.\n" +
+             "Pass 0 to obtain date portion expressed in local time zone,\n" +
+             "1 to obtain time portion expressed in local time zone, 2 to\n" +
+             "obtain date portion expressed in local time zone and\n" +
+             "formatted to local conventions, 3 to obtain time portion\n" +
+             "expressed in local time zone and formatted to local\n" +
+             "conventions, 4 to obtain date and time expressed in local\n" +
+             "time zone, or 5 to obtain date and time expressed in local\n" +
+             "time zone and formatted to local conventions.\n\n" +
+             "Example: PRINT DATETIME$(0) 'Output: Wed Jun 06 2012\n\n";
+
+         var help_dim = 
+             "DIM: dimension (define) variable(s)\n\n" +
+             "Syntax: DIM var [= (numexpr | strexpr)]\n" +
+             "            [, var [= (numexpr | strexpr)]]*\n\n" +
+             "Dimension (define) one or more variables. A comma separates\n" +
+             "each variable name from its predecessor. A variable whose\n" +
+             "name does not have a suffix has number type. A variable\n" +
+             "whose name has a $ suffix has string type. You can\n" +
+             "optionally assign to a variable an expression of the same\n" +
+             "type, unless the variable is an array -- one-dimensional\n" +
+             "and two-dimensional arrays are supported only. Default\n" +
+             "values are \"\" (empty string) for strings and 0 for numbers.\n" +
+             "\n" +
+             "Example: DIM pi = 3.14159\n" +
+             "Example: DIM name$\n" +
+             "Example: DIM words$[5], screen_[80][25]\n\n" +
+             "See also: LENGTH\n\n";
+
+         var help_else =
+             "ELSE: provide false branch of IF statement\n\n" +
+             "Syntax: ELSE\n\n" +
+             "Unlike in other BASICs, BBASIC doesn't allow ELSE to appear\n" +
+             "on the same line as IF, for clarity.\n\n" +
+             "Example: IF age >= 65 THEN\n" +
+             "         PRINT \">= 65\"\n" +
+             "         ELSE\n" +
+             "         PRINT \"< 65\"\n" +
+             "         ENDIF\n\n" +
+             "See also: ENDIF, IF\n\n";
+
+         var help_end =
+             "END: end program\n\n" +
+             "Syntax: END\n\n" +
+             "End program.\n\n" +
+             "Example: END\n\n";
+
+         var help_endif =
+             "ENDIF: end IF statement\n\n" +
+             "Syntax: ENDIF\n\n" +
+             "Unlike in other BASICs, BBASIC doesn't allow ENDIF to\n" +
+             "appear on the same line as IF, for clarity.\n\n" +
+             "Example: IF age >= 65 THEN\n" +
+             "         PRINT \">= 65\"\n" +
+             "         ELSE\n" +
+             "         PRINT \"< 65\"\n" +
+             "         ENDIF\n\n" +
+             "See also: ELSE, IF\n\n";
+
+         var help_endwhile =
+             "ENDWHILE: end WHILE statement\n\n" +
+             "Syntax: ENDWHILE\n\n" +
+             "Unlike in other BASICs, BBASIC doesn't allow ENDWHILE to\n" +
+             "appear on the same line as WHILE, for clarity.\n\n" +
+             "Example: WHILE i < 10\n" +
+             "         PRINT i\n" +
+             "         i = i + 1\n" +
+             "         ENDWHILE\n\n" +
+             "See also: WHILE\n\n";
+
+         var help_exp =
+             "EXP: obtain E raised to some power\n\n" +
+             "Syntax: EXP(numexpr)\n\n" +
+             "Obtain E (~ 2.71828) raised to power numexpr.\n\n" +
+             "Example: PRINT EXP(1) 'Output: ~ 2.71828\n\n" +
+             "See also: PI\n\n";
+
+         var help_files =
+             "FILES: display list of program files\n\n" +
+             "Syntax: FILES\n\n" +
+             "Display list of program files. Cannot include FILES in\n" +
+             "program.\n\n" +
+             "Example: FILES\n\n";
+
+         var help_floor =
+             "FLOOR: round downwards to nearest integer\n\n" +
+             "Syntax: FLOOR(numexpr)\n\n" +
+             "Round numexpr downwards to nearest integer.\n\n" +
+             "Example: PRINT FLOOR(99.1) 'Output: 99\n" +
+             "Example: PRINT FLOOR(-99.1) 'Output: -100\n\n" +
+             "See also: CEIL, ROUND, TRUNC\n\n";
+
+         var help_for =
+             "FOR: execute statement(s) some number of times\n\n" +
+             "Syntax: FOR var = numexpr1 TO numexpr2 [STEP numexpr3]\n\n" +
+             "Assign numexpr1 to var. If var not >= numexpr2, execute all\n" +
+             "statements between FOR and NEXT. Add numexpr3 (if present)\n" +
+             "or 1 (default) to var. If var not >= numexpr2, execute all\n" +
+             "statements between FOR and NEXT, and so on.\n\n" +
+             "Example: FOR i = 1 TO 10\n" +
+             "         PRINT i\n" +
+             "         NEXT\n" +
+             "Example: FOR i = 10 TO 1 STEP -1\n" +
+             "         PRINT i\n" +
+             "         NEXT\n\n" +
+             "See also: NEXT\n\n";
+
+         var help_graphics =
+             "GRAPHICS: execute graphics commands\n\n" +
+             "Syntax: GRAPHICS (a | bct | bp | cp | cr | f | fr | ft |\n" +
+             "                  lt | mt | mtx | qct | r | s | sf | sfs |\n" +
+             "                  sfs2 | slw | sr | sss | sss2 | st | u)+\n\n" +
+             "Command abbreviations are case-sensitive (i.e., you cannot\n" +
+             "specify them in anything other than lowercase. Also, you\n" +
+             "can specify multiple commands in the same statement.\n\n" +
+             "To learn about individual commands, type HELP GRAPHICS cmd,\n" +
+             "where cmd is one of the command abbreviations in the syntax\n" +
+             "above; for example, HELP GRAPHICS a.\n\n";
+
+         var help_graphics_a =
+             "GRAPHICS: execute ARC command\n\n" +
+             "Syntax: GRAPHICS a intexpr1 intexpr2 intexpr3 numexpr1\n" +
+             "                 numexpr2 boolexpr\n\n" +
+             "Draw an arc, where intexpr1 specifies the x-coordinate of a\n" +
+             "circle center, intexpr2 specifies the y-coordinate of a\n" +
+             "circle center, intexpr3 specifies the arc's radius from\n" +
+             "the circle center, numexpr1 specifies the starting angle\n" +
+             "(in radians), numexpr2 specifies the ending angle (in\n" +
+             "radians), and boolexpr specifies the drawing direction\n" +
+             "(true for clockwise; false for counterclockwise). You must\n" +
+             "previously execute the bp command, and subsequently execute\n" +
+             "the cp, f, or s command.\n\n" +
+             "Example: GRAPHICS a 200 200 40 0 3 * PI / 2 false\n\n" +
+             "This example draws an arc whose center is at (200, 200),\n" +
+             "whose radius is 40, whose start angle is 0, whose end angle\n" +
+             "is 3 * PI / 2, and in a clockwise direction.\n\n";
+
+         var help_graphics_bct =
+             "GRAPHICS: execute BEZIER CURVE TO command\n\n" +
+             "Syntax: GRAPHICS bct intexpr1 intexpr2 intexpr3 intexpr4\n" +
+             "                 intexpr5 intexpr6\n\n" +
+             "Draw a bezier curve, where intexpr1 specifies the\n" +
+             "x-coordinate of the first control point, intexpr2 specifies\n" +
+             "the y-coordinate of the first control point, intexpr3\n" +
+             "specifies the x-coordinate of the second control point,\n" +
+             "intexpr4 specifies the y-coordinate of the second control\n" +
+             "point, intexpr5 specifies the x-coordinate of the end\n" +
+             "point, and intexpr6 specifies the y-coordinate of the end\n" +
+             "point. You must previously execute the bp command and\n" +
+             "subsequently execute the cp, f, or s command.\n\n" +
+             "Example: GRAPHICS bct 20 100 200 100 200 20\n\n" +
+             "This example draws a bezier curve with first control point\n" +
+             "at (20, 100), second control point at (200, 100), and\n" +
+             "end point at (200, 20).\n\n";
+
+         var help_graphics_bp =
+             "GRAPHICS: execute BEGIN PATH command\n\n" +
+             "Syntax: GRAPHICS bp\n\n" +
+             "Begin a path for a new shape. This command must be executed\n" +
+             "before executing the a, bct, lt, mt, and qct commands.\n\n" +
+             "Example: GRAPHICS bp\n\n";
+
+         var help_graphics_cp =
+             "GRAPHICS: execute CLOSE PATH command\n\n" +
+             "Syntax: GRAPHICS cp\n\n" +
+             "Try to close the currently begun path by drawing a straight\n" +
+             "line from the current point to the starting point. If the\n" +
+             "shape has been closed, or if there's only one point in the\n" +
+             "path, this command does nothing. Note: The f command closes\n" +
+             "an open path and cp isn't necessary in this context.\n\n" +
+             "Example: GRAPHICS cp\n\n";
+
+         var help_graphics_cr =
+             "GRAPHICS: execute CLEAR RECT command\n\n" +
+             "Syntax: GRAPHICS cr intexpr1 intexpr2 intexpr3 intexpr4\n\n" +
+             "Clear all pixels inside a rectangular area to transparent\n" +
+             "black, where intexpr1 specifies the x-coordinate of the\n" +
+             "upper-left corner, intexpr2 specifies the y-coordinate of\n" +
+             "the upper-left corner, intexpr3 specifies the rectangular\n" +
+             "area width, and intexpr4 specifies the rectangular area\n" +
+             "height.\n\n" +
+             "Example: GRAPHICS cr 10 10 100 100\n\n";
+
+         var help_graphics_f =
+             "GRAPHICS: execute FILL command\n\n" +
+             "Syntax: GRAPHICS f\n\n" +
+             "Close current path when open and fill shape specified by\n" +
+             "path using current fill style specified by the sfs or sfs2\n" +
+             "command.\n\n" +
+             "Example: GRAPHICS f\n\n";
+
+         var help_graphics_fr =
+             "GRAPHICS: execute FILL RECT command\n\n" +
+             "Syntax: GRAPHICS fr intexpr1 intexpr2 intexpr3 intexpr4\n\n" +
+             "Set all pixels inside a rectangular area to current fill\n" +
+             "style specified by the sfs or sfs2 command, where intexpr1\n" +
+             "specifies the x-coordinate of the upper-left corner,\n" +
+             "intexpr2 specifies the y-coordinate of the upper-left\n" +
+             "corner, intexpr3 specifies the rectangular area width, and\n" +
+             "intexpr4 specifies the rectangular area height.\n\n" +
+             "Example: GRAPHICS fr 10 10 100 100\n\n";
+
+         var help_graphics_ft =
+             "GRAPHICS: execute FILL TEXT command\n\n" +
+             "Syntax: GRAPHICS ft strexpr intexpr1 intexpr2\n\n" +
+             "Fill text specified by strexpr whose leftmost character is\n" +
+             "located at the x-coordinate specified by intexpr1 and the\n" +
+             "y-coordinate specified by intexpr2.\n\n" +
+             "Example: GRAPHICS ft \"Hello\" 10 10\n\n";
+
+         var help_graphics_lt =
+             "GRAPHICS: execute LINE TO command\n\n" +
+             "Syntax: GRAPHICS lt intexpr1 intexpr2\n\n" +
+             "Draw a line from current point to end point. You must first\n" +
+             "execute the bp command and subsequently execute the cp, f,\n" +
+             "or s command.\n\n" +
+             "Example: GRAPHICS lt 100 100\n\n" +
+             "This example draws a line from the current point to point\n" +
+             "(100, 100).\n\n";
+
+         var help_graphics_mt =
+             "GRAPHICS: execute MOVE TO command\n\n" +
+             "Syntax: GRAPHICS mt intexpr1 intexpr2\n\n" +
+             "Set current point to the point whose x-coordinate is\n" +
+             "specified by intexpr1 and whose y-coordinate is specified\n" +
+             "by intexpr2. You must previously execute the bp command and\n" +
+             "subsequently execute the cp, f, or s command.\n\n" +
+             "Example: GRAPHICS mt 20 20\n\n";
+
+         var help_graphics_mtx =
+             "GRAPHICS: execute MEASURE TEXT command\n\n" +
+             "Syntax: GRAPHICS mtx strexpr1 strexpr2 var\n\n" +
+             "Measure the text specified by strexpr1 according to the\n" +
+             "font specified by strexpr2 and store the result in the\n" +
+             "number variable specified by var, which must exist.\n\n" +
+             "Example: GRAPHICS mtx \"Hello World\" \"30px Arial\" i\n\n";
+
+         var help_graphics_qct =
+             "GRAPHICS: execute QUADRATIC CURVE TO command\n\n" +
+             "Syntax: GRAPHICS qct intexpr1 intexpr2 intexpr3 intexpr4\n\n" +
+             "Draw a quadratic curve, where intexpr1 specifies the\n" +
+             "x-coordinate of the control point, intexpr2 specifies the\n" +
+             "y-coordinate of the control point, intexpr3 specifies the\n" +
+             "x-coordinate of the end point, and intexpr4 specifies the\n" +
+             "y-coordinate of the end point. You must previously execute\n" +
+             "the bp command and subsequently execute the cp, f, or s\n" +
+             "command.\n\n" +
+             "Example: GRAPHICS qct 20 100 200 20\n\n" +
+             "This example draws a quadratic curve with control point at\n" +
+             "(20, 100) and end point at (200, 20).\n\n";
+
+         var help_graphics_r =
+             "GRAPHICS: execute RECT command\n\n" +
+             "Syntax: GRAPHICS r intexpr1 intexpr2 intexpr3 intexpr4\n\n" +
+             "Draw a rectangle outline/fill its interior, where intexpr1\n" +
+             "specifies the x-coordinate of the upper-left corner,\n" +
+             "intexpr2 specifies the y-coordinate of the upper-left\n" +
+             "corner, intexpr3 specifies the rectangular area width, and\n" +
+             "intexpr4 specifies the rectangular area height. You must\n" +
+             "first execute the bp command and subsequently execute the\n" +
+             "cp, f or s command.\n\n" +
+             "Example: GRAPHICS r 10 10 100 100\n\n" +
+             "This example draws a rectangle with upper-left corner at\n" +
+             "(10, 10) and equal width and height of 100.\n\n";
+
+         var help_graphics_s =
+             "GRAPHICS: execute STROKE command\n\n" +
+             "Syntax: GRAPHICS s\n\n" +
+             "Stroke shape specified by current path using current stroke\n" +
+             "style specified by the sss or sss2 command.\n\n" +
+             "Example: GRAPHICS s\n\n";
+
+         var help_graphics_sf =
+             "GRAPHICS: execute SET FONT command\n\n" +
+             "Syntax: GRAPHICS sf strexpr\n\n" +
+             "Set the font for subsequently rendered text to strexpr.\n\n" +
+             "Example: GRAPHICS sf \"30px Arial\"\n\n";
+
+         var help_graphics_sfs =
+             "GRAPHICS: execute SET FILL STYLE command\n\n" +
+             "Syntax: GRAPHICS sfs intexpr1 intexpr2 intexpr3\n\n" +
+             "Set the fill style to the color whose red component is\n" +
+             "specified by intexpr1, green component is specified by\n" +
+             "intexpr2, and blue component is specified by intexpr3. Each\n" +
+             "component ranges from 0 through 255.\n\n" +
+             "Example: GRAPHICS sfs 255 0 0\n\n";
+
+         var help_graphics_sfs2 =
+             "GRAPHICS: execute SET FILL STYLE 2 command\n\n" +
+             "Syntax: GRAPHICS sfs2 intexpr1 intexpr2 intexpr3 numexpr\n\n" +
+             "Set the fill style to the color whose red component is\n" +
+             "specified by intexpr1, green component is specified by\n" +
+             "intexpr2, and blue component is specified by intexpr3; and\n" +
+             "whose alpha component is set to numexpr. Each of intexpr1,\n" +
+             "intexpr2, and intexpr3 ranges from 0 through 255; and\n" +
+             "numexpr ranges from 0.0 (transparent) to 1.0 (opaque).\n\n" +
+             "Example: GRAPHICS sfs2 255 0 0 0.5\n\n";
+
+         var help_graphics_slw =
+             "GRAPHICS: execute SET LINE WIDTH command\n\n" +
+             "Syntax: GRAPHICS slw intexpr\n\n" +
+             "Set the line width to intexpr.\n\n" +
+             "Example: GRAPHICS slw 4\n\n";
+
+         var help_graphics_sr =
+             "GRAPHICS: execute STROKE RECT command\n\n" +
+             "Syntax: GRAPHICS sr intexpr1 intexpr2 intexpr3 intexpr4\n\n" +
+             "Set all pixels of a rectangular area outline to current\n" +
+             "stroke style specified by the sss or sss2 command, where\n" +
+             "intexpr1 specifies the x-coordinate of the upper-left\n" +
+             "corner, intexpr2 specifies the y-coordinate of the upper-\n" +
+             "left corner, intexpr3 specifies the rectangular area width,\n" +
+             "and intexpr4 specifies the rectangular area height.\n\n" +
+             "Example: GRAPHICS sr 10 10 100 100\n\n";
+
+         var help_graphics_sss =
+             "GRAPHICS: execute SET STROKE STYLE command\n\n" +
+             "Syntax: GRAPHICS sss intexpr1 intexpr2 intexpr3\n\n" +
+             "Set the stroke style to the color whose red component is\n" +
+             "specified by intexpr1, green component is specified by\n" +
+             "intexpr2, and blue component is specified by intexpr3. Each\n" +
+             "component ranges from 0 through 255.\n\n" +
+             "Example: GRAPHICS sss 255 0 0\n\n";
+
+         var help_graphics_sss2 =
+             "GRAPHICS: execute SET STROKE STYLE 2 command\n\n" +
+             "Syntax: GRAPHICS sss2 intexpr1 intexpr2 intexpr3 numexpr\n\n" +
+             "Set the stroke style to the color whose red component is\n" +
+             "specified by intexpr1, green component is specified by\n" +
+             "intexpr2, and blue component is specified by intexpr3; and\n" +
+             "whose alpha component is set to numexpr. Each of intexpr1,\n" +
+             "intexpr2, and intexpr3 ranges from 0 through 255; and\n" +
+             "numexpr ranges from 0.0 (transparent) to 1.0 (opaque).\n\n" +
+             "Example: GRAPHICS sss2 255 0 0 0.5\n\n";
+
+         var help_graphics_st =
+             "GRAPHICS: execute STROKE TEXT command\n\n" +
+             "Syntax: GRAPHICS st strexpr intexpr1 intexpr2\n\n" +
+             "Stroke text specified by strexpr whose leftmost character is\n" +
+             "located at the x-coordinate specified by intexpr1 and the\n" +
+             "y-coordinate specified by intexpr2.\n\n" +
+             "Example: GRAPHICS st \"Hello\" 10 10\n\n";
+
+         var help_graphics_u =
+             "GRAPHICS: execute UPDATE command\n\n" +
+             "Syntax: GRAPHICS u\n\n" +
+             "During a loop, graphics won't appear on the console unless\n" +
+             "a PRINT or INPUT statement, or the INKEY$ function executes.\n" +
+             "This behavior lets you build a scene without showing its\n" +
+             "construction to the user. To show the finished scene, either\n" +
+             "execute PRINT, INPUT, or INKEY$; or execute this command.\n\n" +
+             "Example: GRAPHICS u\n\n";
+
+         var help_help =
+             "HELP: display help\n\n" +
+             "Syntax: HELP [page number | cmd | stmt | function]\n\n" +
+             "Display help. The first page is displayed when no argument\n" +
+             "is present, Page 2 through 8 are displayed when 2 through 8\n" +
+             "is specified, and a page for a specific command, statement,\n" +
+             "or function is specified when the command, statement, or\n" +
+             "function reserved word is specified.\n\n" +
+             "Example: HELP\n" +
+             "Example: HELP 2\n" +
+             "Example: HELP HELP\n" +
+             "Example: HELP DIM\n" +
+             "Example: HELP UCASE$\n\n";
+
+         var help_hex = 
+             "HEX$: obtain hexadecimal equivalent of integer\n\n" +
+             "Syntax: HEX$(intexpr)\n\n" +
+             "Obtain hexadecimal equivalent of intexpr, which must not be\n" +
+             "less than 0.\n\n" +
+             "Example: PRINT HEX$(255) 'Output: ff\n\n";
+
+         var help_if =
+             "IF: conditionally execute statements\n\n" +
+             "Syntax: IF boolexpr THEN\n\n" +
+             "Execute statements between IF and ELSE or ENDIF when\n" +
+             "boolexpr is true. Otherwise, search for matching ELSE and\n" +
+             "execute all statements between ELSE and ENDIF. If no ELSE,\n" +
+             "search for matching ENDIF and resume execution after ENDIF.\n" +
+             "Unlike in other BASICs, BBASIC doesn't allow ELSE or ENDIF\n" +
+             "to appear on the same line as IF, for clarity.\n\n" +
+             "Example: IF age >= 65 THEN\n" +
+             "         PRINT \">= 65\"\n" +
+             "         ELSE\n" +
+             "         PRINT \"< 65\"\n" +
+             "         ENDIF\n\n" +
+             "See also: ELSE, ENDIF\n\n";
+
+         var help_inkey = 
+             "INKEY$: obtain character keystroke or Enter/Return\n\n" +
+             "Syntax: INKEY$\n\n" +
+             "Obtain next character-based keystroke (e.g., A) or\n" +
+             "Enter/Return from console. The empty string is returned\n" +
+             "when neither character-based keystroke nor Enter/Return is\n" +
+             "available.\n\n" +
+             "Example: WHILE INKEY$ <> CHR$(10) ' Loop until Enter\n" +
+             "         ENDWHILE                 ' is pressed.\n\n" +
+             "See also: INPUT, PRINT\n\n";
+
+         var help_input =
+             "INPUT: input line of text into string variable\n\n" +
+             "Syntax: INPUT var\n\n" +
+             "A line of text without the terminating newline character is\n" +
+             "input into the string variable identified by var.\n\n" +
+             "Example: INPUT x$\n\n" +
+             "See also: INKEY$, PRINT\n\n";
+
+         var help_instr = 
+             "INSTR: search string for occurrence of substring\n\n" +
+             "Syntax: INSTR(intexpr, strexpr1, strexpr2)\n\n" +
+             "Search strexpr1 for strexpr2. The zero-based index of the\n" +
+             "first occurrence returns when intexpr >= 0; the zero-based\n" +
+             "index of the last occurrence returns when intexpr < 0. -1\n" +
+             "returns when there is no occurrence.\n\n" +
+             "Example: PRINT INSTR(0, \"ABCBC\", \"BC\") 'Output: 1\n" +
+             "Example: PRINT INSTR(-1, \"ABCBC\", \"BC\") 'Output: 3\n\n";
+
+         var help_isinf = 
+             "ISINF: detect positive or negative infinity\n\n" +
+             "Syntax: ISINF(numexpr)\n\n" +
+             "Test numexpr for positive or negative infinity, and return\n" +
+             "true if this is so. Otherwise, return false. This function\n" +
+             "can be used only in Boolean expressions with IF, UNTIL, or\n" +
+             "WHILE.\n\n" +
+             "Example: IF ISINF(1 / 0) THEN\n\n";
+
+         var help_isnan = 
+             "ISNAN: detect not a number\n\n" +
+             "Syntax: ISNAN(numexpr)\n\n" +
+             "Test numexpr for not a number, and return true if this is\n" +
+             "so. Otherwise, return false. This function can be used only\n" +
+             "in Boolean expressions with IF, UNTIL, or WHILE.\n\n" +
+             "Example: IF ISNAN(0 / 0) THEN\n\n";
+
+         var help_isninf = 
+             "ISNINF: detect negative infinity\n\n" +
+             "Syntax: ISNINF(numexpr)\n\n" +
+             "Test numexpr for negative infinity, and return true if this\n" +
+             "is so. Otherwise, return false. This function can be used\n" +
+             "only in Boolean expressions with IF, UNTIL, or WHILE.\n\n" +
+             "Example: IF ISNINF(-1 / 0) THEN\n\n";
+
+         var help_ispinf = 
+             "ISPINF: detect positive infinity\n\n" +
+             "Syntax: ISPINF(numexpr)\n\n" +
+             "Test numexpr for positive infinity, and return true if this\n" +
+             "is so. Otherwise, return false. This function can be used\n" +
+             "only in Boolean expressions with IF, UNTIL, or WHILE.\n\n" +
+             "Example: IF ISPINF(1 / 0) THEN\n\n";
+
+         var help_kill =
+             "KILL: kill program file\n\n" +
+             "Syntax: KILL filename\n\n" +
+             "Kill program file identified by filename. Cannot specify a\n" +
+             "reserved word (e.g., KILL) for filename. Cannot include\n" +
+             "KILL in program.\n\n" +
+             "Example: KILL test\n\n";
+
+         var help_lcase = 
+             "LCASE$: obtain lowercase equivalent of string\n\n" +
+             "Syntax: LCASE$(strexpr)\n\n" +
+             "Convert strexpr to lowercase and return result.\n\n" +
+             "Example: PRINT LCASE$(\"ABC\") 'Output: abc\n\n" +
+             "See also: UCASE$\n\n";
+
+         var help_left =
+             "LEFT$: obtain leftmost characters from string\n\n" +
+             "Syntax: LEFT$(strexpr, intexpr)\n\n" +
+             "Obtain leftmost characters from strexpr. The number of\n" +
+             "returned characters is specified by intexpr, which must be\n" +
+             "a positive integer.\n\n" +
+             "Example: PRINT LEFT$(\"ABC\", 1) 'Output: A\n\n" +
+             "See also: MID$, RIGHT$\n\n";
+
+         var help_len =
+             "LEN: obtain length of string\n\n" +
+             "Syntax: LEN(strexpr)\n\n" +
+             "Obtain length of string specified by strexpr.\n\n" +
+             "Example: PRINT LEN(\"ABC\") 'Output: 3\n\n";
+
+         var help_length =
+             "LENGTH: obtain length of array\n\n" +
+             "Syntax: LENGTH(id, intexpr)\n\n" +
+             "Obtain length of array specified by id. Pass 1 or 2 to\n" +
+             "intexpr: 1 for a one-dimensional array; 2 for a two-\n" +
+             "dimensional array.\n\n" +
+             "Example: DIM words$[5]\n" +
+             "         PRINT LENGTH(words$, 1) 'Output: 5\n\n" +
+             "See also: DIM\n\n";
+
+         var help_list =
+             "LIST: list program lines\n\n" +
+             "Syntax: LIST\n" +
+             "Syntax: LIST linenum\n" +
+             "Syntax: LIST linenum-\n" +
+             "Syntax: LIST linenum-linenum\n" +
+             "Syntax: LIST -linenum\n\n" +
+             "List program lines. The first syntax lists all lines, the\n" +
+             "second syntax lists the specified line, the third syntax\n" +
+             "lists all lines starting with the specified line, the\n" +
+             "fourth syntax lists a range of lines (the first line\n" +
+             "number must be less than the second line number), and the\n" +
+             "fifth syntax lists all lines upto and including the\n" +
+             "specified line. Cannot include LIST in program.\n\n" +
+             "Example: LIST\n" +
+             "Example: LIST 10\n" +
+             "Example: LIST 10-\n" +
+             "Example: LIST 10-50\n" +
+             "Example: LIST -50\n\n";
+
+         var help_load =
+             "LOAD: load program file\n\n" +
+             "Syntax: LOAD filename\n\n" +
+             "Load program file identified by filename. Cannot specify a\n" +
+             "reserved word (e.g., LOAD) for filename. Cannot include\n" +
+             "LOAD in program.\n\n" +
+             "Example: LOAD test\n\n";
+
+         var help_locate =
+             "LOCATE: locate cursor position\n\n" +
+             "Syntax: LOCATE intexpr1, intexpr2\n\n" +
+             "Locate cursor at row intexpr1 and column intexpr2. The\n" +
+             "minimum value for each of the row and column is 1. The\n" +
+             "maximum value for the row is returned by SCREEN(1) and the\n" +
+             "maximum value for the column is returned by SCREEN(0).\n\n" +
+             "Example: LOCATE 2, 1 'Set cursor to row 2, col 1.\n" +
+             "         PRINT \"Hello\"\n\n" + 
+             "See also: SCREEN\n\n";
+
+         var help_log =
+             "LOG: obtain base 10 logarithm\n\n" +
+             "Syntax: LOG(numexpr)\n\n" +
+             "Obtain base 10 logarithm of numexpr. Logarithm of negative\n" +
+             "number is NaN (Not a Number).\n\n" +
+             "Example: PRINT LOG(1) 'Output: 0\n\n";
+
+         var help_mid =
+             "MID$: obtain middle characters from string\n\n" +
+             "Syntax: MID$(strexpr, intexpr1, intexpr2)\n\n" +
+             "Obtain middle characters from strexpr. First returned\n" +
+             "character at 0-based index intexpr1; number of returned\n" +
+             "characters specified by intexpr2. Both intexpr1 and\n" +
+             "intexpr2 must be positive integers.\n\n" +
+             "Example: PRINT MID$(\"ABC\", 1, 1) 'Output: B\n\n" +
+             "See also: MID$, RIGHT$\n\n";
+
+         var help_new =
+             "NEW: erase program\n\n" +
+             "Syntax: NEW\n\n" +
+             "Erase program from memory. Cannot include NEW in program.\n\n" +
+             "Example: NEW\n\n";
+
+         var help_next =
+             "NEXT: end FOR statement\n\n" +
+             "Syntax: NEXT\n\n" +
+             "Unlike in other BASICs, BBASIC doesn't allow NEXT to appear\n" +
+             "on the same line as FOR, for clarity.\n\n" +
+             "Example: FOR i = 1 TO 10\n" +
+             "         PRINT i\n" +
+             "         NEXT\n" +
+             "Example: FOR i = 10 TO 1 STEP -1\n" +
+             "         PRINT i\n" +
+             "         NEXT\n\n" +
+             "See also: FOR\n\n";
+
+         var help_pi = 
+             "PI: obtain ratio of circumference to diameter\n\n" +
+             "Syntax: PI\n\n" +
+             "Obtain PI (3.14159), which is the ratio of a circle's\n" +
+             "circumference to its diameter.\n\n" +
+             "Example: PRINT PI 'Output: 3.141592653589793\n\n" +
+             "See also: EXP, TODEGREES, TORADIANS\n\n";
+
+         var help_pow = 
+             "POW: obtain number raised to some power\n\n" +
+             "Syntax: POW(numexpr1, numexpr2)\n\n" +
+             "Raise numexpr1 to power numexpr2.\n\n" +
+             "Example: PRINT POW(10, 2) 'Output: 100\n\n";
+
+         var help_print =
+             "PRINT: display number/string expressions\n\n" +
+             "Syntax: PRINT\n" +
+             "Syntax: PRINT (numexpr | strexpr) [, (numexpr | strexpr)]*\n\n" +
+             "Print either a newline or the values of a comma-separated\n" +
+             "list of numeric and string expressions to the console. A\n" +
+             "newline is output after last expression, unless a semicolon\n" +
+             "terminates the PRINT statement. A space is output before 0\n" +
+             "or a positive number, and a space is output after each\n" +
+             "number.\n\n" +
+             "Example: PRINT \"Hello\" 'Output: Hello\n" +
+             "Example: PRINT \"x = \" + STR$(10) 'Output: x = 10\n\n" +
+             "See also: INKEY$, INPUT\n\n";
+
+         var help_random =
+             "RANDOM: obtain random number\n\n" +
+             "Syntax: RANDOM()\n\n" +
+             "Obtain random number between 0.0 and 1.0.\n\n" +
+             "Example: PRINT RANDOM()\n\n" +
+             "See also: RND\n\n";
+
+         var help_read = 
+             "READ: read the next DATA item\n\n" +
+             "Syntax: READ var\n\n" +
+             "Read the next DATA item into a variable. The DATA item type\n" +
+             "must agree with the variable type.\n\n" +
+             "Example: READ x$\n" +
+             "         DATA \"abc\"\n\n" +
+             "See also: DATA\n\n";
+
+         var help_rem =
+             "REM: remark/comment\n\n" +
+             "Syntax: REM text\n\n" +
+             "Insert a one-line comment into the program. You can append\n" +
+             "a comment to an existing line by prefixing the comment with\n" +
+             "a single quote ('). BBASIC ignores comments.\n\n" +
+             "Example: REM comment text\n" +
+             "Example: PRINT \"Hello\" ' hello, world\n\n";
+
+         var help_renum =
+             "RENUM: renumber program\n\n" +
+             "Syntax: RENUM\n\n" +
+             "Renumber program such that first line is at 10 and\n" +
+             "successive lines are at successive multiples of 10. Cannot\n" +
+             "include RENUM in program.\n\n" +
+             "Example: RENUM\n\n";
+
+         var help_repeat =
+             "REPEAT: execute statement(s) repeatedly\n\n" +
+             "Syntax: REPEAT\n\n" +
+             "Execute all statements between REPEAT and its matching\n" +
+             "UNTIL statement until the Boolean expression following\n" +
+             "UNTIL is true.\n\n" +
+             "Example: REPEAT\n" +
+             "         i = i + 1\n" +
+             "         UNTIL i = 10\n\n" +
+             "See also: UNTIL\n\n";
+
+         var help_return =
+             "RETURN: return execution from subroutine\n\n" +
+             "Syntax: RETURN\n\n" +
+             "Return execution from subroutine to line following line of\n" +
+             "matching CALL.\n\n" +
+             "Example: RETURN\n\n" +
+             "See also: CALL\n\n";
+
+         var help_right =
+             "RIGHT$: obtain rightmost characters from string\n\n" +
+             "Syntax: RIGHT$(strexpr, intexpr)\n\n" +
+             "Obtain rightmost characters from strexpr. The number of\n" +
+             "returned characters is specified by intexpr, which must be\n" +
+             "a positive integer.\n\n" +
+             "Example: PRINT RIGHT$(\"ABC\", 1) 'Output: C\n\n" +
+             "See also: LEFT$, MID$\n\n";
+
+         var help_rnd =
+             "RND: obtain random number\n\n" +
+             "Syntax: RND(intexpr)\n\n" +
+             "Obtain random number between 0 and intexpr - 1 (inclusive).\n\n" +
+             "Example: PRINT RND(100) 'Output: 10\n\n" +
+             "See also: RANDOM\n\n";
+
+         var help_round =
+             "ROUND: round number to nearest integer\n\n" +
+             "Syntax: ROUND(numexpr)\n\n" +
+             "Round numexpr to nearest integer.\n\n" +
+             "Example: PRINT ROUND(3.14159) 'Output: 3\n\n" +
+             "See also: CEIL, FLOOR, TRUNC\n\n";
+
+         var help_run =
+             "RUN: run program\n\n" +
+             "Syntax: RUN\n\n" +
+             "Run program. Cannot include RUN in program.\n\n" +
+             "Example: RUN\n\n";
+
+         var help_save =
+             "SAVE: save to program file\n\n" +
+             "Syntax: SAVE filename\n\n" +
+             "Save to program file identified by filename. Cannot specify\n" +
+             "a reserved word (e.g., SAVE) for filename. Cannot include\n" +
+             "SAVE in program.\n\n" +
+             "Example: SAVE test\n\n";
+
+         var help_screen =
+             "SCREEN: obtain screen information\n\n" +
+             "Syntax: SCREEN(intexpr)\n\n" +
+             "Obtain screen information. Pass 0 to obtain number of text\n" +
+             "columns, 1 to obtain number of text rows, 2 to obtain width\n" +
+             "in pixels, and 3 to obtain height in pixels.\n\n" +
+             "Example: PRINT SCREEN(0)\n\n" +
+             "See also: LOCATE\n\n";
+
+         var help_sgn =
+             "SGN: obtain sign value\n\n" +
+             "Syntax: SGN(numexpr)\n\n" +
+             "Obtain sign of numexpr: 1 (numexpr > 0), 0 (numexpr = 0),\n" +
+             "or -1 (numexpr < 0)\n\n" +
+             "Example: PRINT SGN(-15) 'Output: -1\n\n";
+
+         var help_sin =
+             "SIN: obtain sine value\n\n" +
+             "Syntax: SIN(numexpr)\n\n" +
+             "Obtain sine of numexpr, which must be specified in radians.\n\n" +
+             "Example: PRINT SIN(3.14159) 'Output: ~ 0.0\n\n" +
+             "See also: ACOS, ASIN, ATAN, COS, TAN\n\n";
+
+         var help_sqrt =
+             "SQRT: obtain square root\n\n" +
+             "Syntax: SQRT(numexpr)\n\n" +
+             "Obtain square root of numexpr. Square root of negative\n" +
+             "number is NaN (Not a Number).\n\n" +
+             "Example: PRINT SQRT(100) 'Output: 10\n\n";
+
+         var help_str =
+             "STR$: convert number to string\n\n" +
+             "Syntax: STR$(numexpr)\n\n" +
+             "Convert numexpr to string.\n\n" +
+             "Example: PRINT STR$(100) 'Output: 100\n\n" +
+             "See also: VAL\n\n";
+
+         var help_string =
+             "STRING$: return multiple copies of a character\n\n" + 
+             "Syntax: STRING$(intexpr, strexpr)\n\n" +
+             "Return a string containing intexpr copies of leftmost\n" +
+             "character in strexpr. The value of intexpr must be\n" +
+             "positive, and the length of strexpr must be 1 or greater.\n\n" +
+             "Example: PRINT STRING$(5, \"*\") 'Output: *****\n\n";
+
+         var help_tan =
+             "TAN: obtain tangent value\n\n" +
+             "Syntax: TAN(numexpr)\n\n" +
+             "Obtain tangent of numexpr, which must be specified in\n" +
+             "radians.\n\n" +
+             "Example: PRINT TAN(3.14159) 'Output: ~ 0.0\n\n" +
+             "See also: ACOS, ASIN, ATAN, COS, SIN\n\n";
+
+         var help_todegrees =
+             "TODEGREES: obtain degree equivalent of radian value\n\n" +
+             "Syntax: TODEGREES(numexpr)\n\n" +
+             "Obtain degree equivalent of radian value passed to numexpr.\n\n" +
+             "Example: PRINT TODEGREES(PI) 'Output: 180\n\n" +
+             "See also: PI, TORADIANS\n\n";
+
+         var help_toradians =
+             "TORADIANS: obtain radian equivalent of degree value\n\n" +
+             "Syntax: TORADIANS(numexpr)\n\n" +
+             "Obtain radian equivalent of degree value passed to numexpr.\n\n" +
+             "Example: PRINT TORADIANS(90) 'Output: ~ 1.5708\n\n" +
+             "See also: PI, TODEGREES\n\n";
+
+         var help_trim =
+             "TRIM$: trim whitespace from string\n\n" +
+             "Syntax: TRIM$(strexpr)\n\n" +
+             "Remove whitespace from both ends of strexpr.\n\n" +
+             "Example: PRINT TRIM$(\" ABC \") 'Output: ABC\n\n";
+
+         var help_trunc =
+             "TRUNC: truncate fraction\n\n" +
+             "Syntax: TRUNC(numexpr)\n\n" +
+             "Obtain whole part of numexpr.\n\n" +
+             "Example: PRINT TRUNC(3.14159) 'Output: 3\n\n" +
+             "See also: CEIL, FLOOR, ROUND\n\n";
+
+         var help_ucase =
+             "UCASE$: obtain uppercase equivalent of string\n\n" +
+             "Syntax: UCASE$(strexpr)\n\n" +
+             "Convert strexpr to uppercase and return result.\n\n" +
+             "Example: PRINT UCASE$(\"abc\") 'Output: ABC\n\n" +
+             "See also: LCASE$\n\n";
+
+         var help_until =
+             "UNTIL: end REPEAT statement\n\n" +
+             "Syntax: UNTIL boolexpr\n\n" +
+             "Execute all statements between REPEAT and its matching\n" +
+             "UNTIL statement until boolexpr is true. Unlike in other\n" +
+             "BASICs, BBASIC doesn't allow UNTIL to appear on the same\n" +
+             "line as REPEAT, for clarity.\n\n" +
+             "Example: REPEAT\n" +
+             "         i = i + 1\n" +
+             "         UNTIL i = 10\n\n" +
+             "See also: REPEAT\n\n";
+
+         var help_val =
+             "VAL: convert string to number\n\n" +
+             "Syntax: VAL(strexpr)\n\n" +
+             "Convert strexpr to number.\n\n" + 
+             "Example: PRINT VAL(\"100\") 'Output: 100\n\n" +
+             "See also: STR$\n\n";
+
+         var help_while =
+             "WHILE: execute statement(s) repeatedly\n\n" +
+             "Syntax: WHILE boolexpr\n\n" +
+             "Execute all statements between WHILE and its matching\n" +
+             "ENDWHILE statement while boolexpr is true. Unlike in other\n" +
+             "BASICs, BBASIC doesn't allow ENDWHILE to appear on the same\n" +
+             "line as WHILE, for clarity.\n\n" +
+             "Example: WHILE i < 10\n" +
+             "         PRINT i\n" +
+             "         i = i + 1\n" +
+             "         ENDWHILE\n\n" +
+             "See also: ENDWHILE\n\n";
+
+         Console.init("screen", 120, 38);
+         Console.echo("Browser BASIC / Home Automation\n");
+         Console.echo("===============================\n");
+         Console.echo("Original code by Jeff Friesen.  Modifications by Michael Scott.  Type 'help' (without the quotes) to obtain help.\n\n");
+         Console.echo("To Do:\n");
+         Console.echo("  Add revision history command to CLI\n");
+         Console.echo("  Add TODO command to CLI\n");
+         Console.echo("  Add facility for User Defined Functions\n");
+         Console.echo("  Add facilty to load a program file upon startup (using <script> tag)\n");
+         Console.echo("  Add access to the stack from external\n");
+         Console.echo("  Move engines (Scanner and BASICI) to webworkers\n");
+         Console.echo("  Allow headless (CLI less) engines - ie translate to APIs\n");
+         Console.echo(">");
+         BASICI.init();
+         var mode = 0; // input
+         function tick()
+         {
+            if (mode == 0)
+            {
+               var line = Console.getLine();
+               if (line != null)
+               {
+                  Scanner.init(line = line.trim());
+                  Scanner.scan();
+                  switch (Scanner.Token.type)
+                  {
+                     case Scanner.Token.CLS:
+                          Console.clear();
+                          break;
+
+                     case Scanner.Token.EOLN:
+                          break;
+
+                     case Scanner.Token.FILES:
+                          var txtFiles = new XMLHttpRequest();
+                          var url = "http://tutortutor.ca/";
+                          url += "cgi-bin/BBASIC_files.php";
+                          txtFiles.open("GET", url);
+                          txtFiles.onreadystatechange = function() 
+                          {  
+                             if (txtFiles.readyState == 4) 
+                             {
+                                if (txtFiles.status == 200)
+                                {
+                                   allText = txtFiles.responseText;
+                                   Console.echo(allText);
+                                }
+                                else
+                                   Console.echo("I/O problem\n");
+                                Console.echo(">");
+                                mode = 0;
+                                return;
+                             }
+                          }
+                          txtFiles.send(null);
+                          mode = 2;
+                          return;
+
+                     case Scanner.Token.HELP:
+                          Scanner.scan();
+                          if (Scanner.Token.type == Scanner.Token.EOLN)
+                          {
+                             Console.clear();
+                             Console.echo(help);
+                             break;
+                          }
+                          switch (Scanner.Token.type)
+                          {
+                             case Scanner.Token.ABS:
+                                  Console.clear();
+                                  Console.echo(help_abs);
+                                  break;
+
+                             case Scanner.Token.ACOS:
+                                  Console.clear();
+                                  Console.echo(help_acos);
+                                  break;
+
+                             case Scanner.Token.ASC:
+                                  Console.clear();
+                                  Console.echo(help_asc);
+                                  break;
+
+                             case Scanner.Token.ASIN:
+                                  Console.clear();
+                                  Console.echo(help_asin);
+                                  break;
+
+                             case Scanner.Token.ATAN:
+                                  Console.clear();
+                                  Console.echo(help_atan);
+                                  break;
+
+                             case Scanner.Token.BROWSER:
+                                  Console.clear();
+                                  Console.echo(help_browser);
+                                  break;
+
+                             case Scanner.Token.CALL:
+                                  Console.clear();
+                                  Console.echo(help_call);
+                                  break;
+
+                             case Scanner.Token.CEIL:
+                                  Console.clear();
+                                  Console.echo(help_ceil);
+                                  break;
+
+                             case Scanner.Token.CHR:
+                                  Console.clear();
+                                  Console.echo(help_chr);
+                                  break;
+
+                             case Scanner.Token.CLS:
+                                  Console.clear();
+                                  Console.echo(help_cls);
+                                  break;
+
+                             case Scanner.Token.COS:
+                                  Console.clear();
+                                  Console.echo(help_cos);
+                                  break;
+
+                             case Scanner.Token.CURSOR:
+                                  Console.clear();
+                                  Console.echo(help_cursor);
+                                  break;
+
+                             case Scanner.Token.DATA:
+                                  Console.clear();
+                                  Console.echo(help_data);
+                                  break;
+
+                             case Scanner.Token.DATETIME:
+                                  Console.clear();
+                                  Console.echo(help_datetime);
+                                  break;
+
+                             case Scanner.Token.DIM:
+                                  Console.clear();
+                                  Console.echo(help_dim);
+                                  break;
+
+                             case Scanner.Token.ELSE:
+                                  Console.clear();
+                                  Console.echo(help_else);
+                                  break;
+
+                             case Scanner.Token.END:
+                                  Console.clear();
+                                  Console.echo(help_end);
+                                  break;
+  
+                             case Scanner.Token.ENDIF:
+                                  Console.clear();
+                                  Console.echo(help_endif);
+                                  break;
+
+                             case Scanner.Token.ENDWHILE:
+                                  Console.clear();
+                                  Console.echo(help_endwhile);
+                                  break;
+
+                             case Scanner.Token.EXP:
+                                  Console.clear();
+                                  Console.echo(help_exp);
+                                  break;
+
+                             case Scanner.Token.FILES:
+                                  Console.clear();
+                                  Console.echo(help_files);
+                                  break;
+
+                             case Scanner.Token.FLOOR:
+                                  Console.clear();
+                                  Console.echo(help_floor);
+                                  break;
+
+                             case Scanner.Token.FOR:
+                                  Console.clear();
+                                  Console.echo(help_for);
+                                  break;
+
+                             case Scanner.Token.GRAPHICS:
+                                  Scanner.scan();
+                                  if (Scanner.Token.type == Scanner.Token.EOLN)
+                                  {
+                                     Console.clear();
+                                     Console.echo(help_graphics);
+                                     break;
+                                  }
+                                  if (Scanner.Token.type == Scanner.Token.ID)
+                                     switch (Scanner.Token.lexeme)
+                                     {
+                                        case "a":
+                                             Console.clear();
+                                             Console.echo(help_graphics_a);
+                                             break;
+
+                                        case "bct":
+                                             Console.clear();
+                                             Console.echo(help_graphics_bct);
+                                             break;
+
+                                        case "bp":
+                                             Console.clear();
+                                             Console.echo(help_graphics_bp);
+                                             break;
+
+                                        case "cp":
+                                             Console.clear();
+                                             Console.echo(help_graphics_cp);
+                                             break;
+
+                                        case "cr":
+                                             Console.clear();
+                                             Console.echo(help_graphics_cr);
+                                             break;
+
+                                        case "f":
+                                             Console.clear();
+                                             Console.echo(help_graphics_f);
+                                             break;
+
+                                        case "fr":
+                                             Console.clear();
+                                             Console.echo(help_graphics_fr);
+                                             break;
+
+                                        case "ft":
+                                             Console.clear();
+                                             Console.echo(help_graphics_ft);
+                                             break;
+
+                                        case "lt":
+                                             Console.clear();
+                                             Console.echo(help_graphics_lt);
+                                             break;
+
+                                        case "mt":
+                                             Console.clear();
+                                             Console.echo(help_graphics_mt);
+                                             break;
+
+                                        case "mtx":
+                                             Console.clear();
+                                             Console.echo(help_graphics_mtx);
+                                             break;
+
+                                        case "qct":
+                                             Console.clear();
+                                             Console.echo(help_graphics_qct);
+                                             break;
+
+                                        case "r":
+                                             Console.clear();
+                                             Console.echo(help_graphics_r);
+                                             break;
+
+                                        case "s":
+                                             Console.clear();
+                                             Console.echo(help_graphics_s);
+                                             break;
+
+                                        case "sf":
+                                             Console.clear();
+                                             Console.echo(help_graphics_sf);
+                                             break;
+
+                                        case "sfs":
+                                             Console.clear();
+                                             Console.echo(help_graphics_sfs);
+                                             break;
+
+                                        case "sfs2":
+                                             Console.clear();
+                                             Console.echo(help_graphics_sfs2);
+                                             break;
+
+                                        case "slw":
+                                             Console.clear();
+                                             Console.echo(help_graphics_slw);
+                                             break;
+
+                                        case "sr":
+                                             Console.clear();
+                                             Console.echo(help_graphics_sr);
+                                             break;
+
+                                        case "sss":
+                                             Console.clear();
+                                             Console.echo(help_graphics_sss);
+                                             break;
+
+                                        case "sss2":
+                                             Console.clear();
+                                             Console.echo(help_graphics_sss2);
+                                             break;
+
+                                        case "st":
+                                             Console.clear();
+                                             Console.echo(help_graphics_st);
+                                             break;
+
+                                        case "u":
+                                             Console.clear();
+                                             Console.echo(help_graphics_u);
+                                             break;
+
+                                        default:
+                                             Console.echo("unknown GRAPHICS " +
+                                                          "command\n");
+                                     }
+                                  else
+                                     Console.echo("bad syntax\n");
+                                  break;
+
+                             case Scanner.Token.HELP:
+                                  Console.clear();
+                                  Console.echo(help_help);
+                                  break;
+
+                             case Scanner.Token.HEX:
+                                  Console.clear();
+                                  Console.echo(help_hex);
+                                  break;
+
+                             case Scanner.Token.ID:
+                                  Console.echo("help not available for " +
+                                               Scanner.Token.lexeme + "\n");
+                                  break;
+
+                             case Scanner.Token.IF:
+                                  Console.clear();
+                                  Console.echo(help_if);
+                                  break;
+
+                             case Scanner.Token.INKEY:
+                                  Console.clear();
+                                  Console.echo(help_inkey);
+                                  break;
+
+                             case Scanner.Token.INPUT:
+                                  Console.clear();
+                                  Console.echo(help_input);
+                                  break;
+
+                             case Scanner.Token.INSTR:
+                                  Console.clear();
+                                  Console.echo(help_instr);
+                                  break;
+
+                             case Scanner.Token.INTLIT:
+                                  switch (parseInt(Scanner.Token.lexeme))
+                                  {
+                                     case 2:
+                                          Console.clear();
+                                          Console.echo(help2);
+                                          break;
+
+                                     case 3:
+                                          Console.clear();
+                                          Console.echo(help3);
+                                          break;
+
+                                     case 4:
+                                          Console.clear();
+                                          Console.echo(help4);
+                                          break;
+
+                                     case 5:
+                                          Console.clear();
+                                          Console.echo(help5);
+                                          break;
+
+                                     case 6:
+                                          Console.clear();
+                                          Console.echo(help6);
+                                          break;
+
+                                     case 7:
+                                          Console.clear();
+                                          Console.echo(help7);
+                                          break;
+
+                                     case 8:
+                                          Console.clear();
+                                          Console.echo(help8);
+                                          break;
+
+                                     default:
+                                          Console.echo("invalid page number\n");
+                                  }
+                                  break;
+
+                             case Scanner.Token.ISINF:
+                                  Console.clear();
+                                  Console.echo(help_isinf);
+                                  break;
+
+                             case Scanner.Token.ISNAN:
+                                  Console.clear();
+                                  Console.echo(help_isnan);
+                                  break;
+
+                             case Scanner.Token.ISNINF:
+                                  Console.clear();
+                                  Console.echo(help_isninf);
+                                  break;
+
+                             case Scanner.Token.ISPINF:
+                                  Console.clear();
+                                  Console.echo(help_ispinf);
+                                  break;
+
+                             case Scanner.Token.KILL:
+                                  Console.clear();
+                                  Console.echo(help_kill);
+                                  break;
+
+                             case Scanner.Token.LCASE:
+                                  Console.clear();
+                                  Console.echo(help_lcase);
+                                  break;
+
+                             case Scanner.Token.LEFT:
+                                  Console.clear();
+                                  Console.echo(help_left);
+                                  break;
+
+                             case Scanner.Token.LEN:
+                                  Console.clear();
+                                  Console.echo(help_len);
+                                  break;
+
+                             case Scanner.Token.LENGTH:
+                                  Console.clear();
+                                  Console.echo(help_length);
+                                  break;
+
+                             case Scanner.Token.LIST:
+                                  Console.clear();
+                                  Console.echo(help_list);
+                                  break;
+
+                             case Scanner.Token.LOAD:
+                                  Console.clear();
+                                  Console.echo(help_load);
+                                  break;
+
+                             case Scanner.Token.LOCATE:
+                                  Console.clear();
+                                  Console.echo(help_locate);
+                                  break;
+
+                             case Scanner.Token.LOG:
+                                  Console.clear();
+                                  Console.echo(help_log);
+                                  break;
+
+                             case Scanner.Token.MID:
+                                  Console.clear();
+                                  Console.echo(help_mid);
+                                  break;
+
+                             case Scanner.Token.NEW:
+                                  Console.clear();
+                                  Console.echo(help_new);
+                                  break;
+
+                             case Scanner.Token.NEXT:
+                                  Console.clear();
+                                  Console.echo(help_next);
+                                  break;
+
+                             case Scanner.Token.PI:
+                                  Console.clear();
+                                  Console.echo(help_pi);
+                                  break;
+
+                             case Scanner.Token.POW:
+                                  Console.clear();
+                                  Console.echo(help_pow);
+                                  break;
+ 
+                             case Scanner.Token.PRINT:
+                                  Console.clear();
+                                  Console.echo(help_print);
+                                  break;
+
+                             case Scanner.Token.RANDOM:
+                                  Console.clear();
+                                  Console.echo(help_random);
+                                  break;
+
+                             case Scanner.Token.REM:
+                                  Console.clear();
+                                  Console.echo(help_rem);
+                                  break;
+
+                             case Scanner.Token.READ:
+                                  Console.clear();
+                                  Console.echo(help_read);
+                                  break;
+
+                             case Scanner.Token.RENUM:
+                                  Console.clear();
+                                  Console.echo(help_renum);
+                                  break;
+
+                             case Scanner.Token.REPEAT:
+                                  Console.clear();
+                                  Console.echo(help_repeat);
+                                  break;
+
+                             case Scanner.Token.RETURN:
+                                  Console.clear();
+                                  Console.echo(help_return);
+                                  break;
+
+                             case Scanner.Token.RIGHT:
+                                  Console.clear();
+                                  Console.echo(help_right);
+                                  break;
+
+                             case Scanner.Token.RND:
+                                  Console.clear();
+                                  Console.echo(help_rnd);
+                                  break;
+
+                             case Scanner.Token.ROUND:
+                                  Console.clear();
+                                  Console.echo(help_round);
+                                  break;
+
+                             case Scanner.Token.RUN:
+                                  Console.clear();
+                                  Console.echo(help_run);
+                                  break;
+
+                             case Scanner.Token.SAVE:
+                                  Console.clear();
+                                  Console.echo(help_save);
+                                  break;
+
+                             case Scanner.Token.SCREEN:
+                                  Console.clear();
+                                  Console.echo(help_screen);
+                                  break;
+ 
+                             case Scanner.Token.SGN:
+                                  Console.clear();
+                                  Console.echo(help_sgn);
+                                  break;
+
+                             case Scanner.Token.SIN:
+                                  Console.clear();
+                                  Console.echo(help_sin);
+                                  break;
+
+                             case Scanner.Token.SQRT:
+                                  Console.clear();
+                                  Console.echo(help_sqrt);
+                                  break;
+
+                             case Scanner.Token.STR:
+                                  Console.clear();
+                                  Console.echo(help_str);
+                                  break;
+
+                             case Scanner.Token.STRING:
+                                  Console.clear();
+                                  Console.echo(help_string);
+                                  break;
+
+                             case Scanner.Token.TAN:
+                                  Console.clear();
+                                  Console.echo(help_tan);
+                                  break;
+
+                             case Scanner.Token.TODEGREES:
+                                  Console.clear();
+                                  Console.echo(help_todegrees);
+                                  break;
+
+                             case Scanner.Token.TORADIANS:
+                                  Console.clear();
+                                  Console.echo(help_toradians);
+                                  break;
+
+                             case Scanner.Token.TRIM:
+                                  Console.clear();
+                                  Console.echo(help_trim);
+                                  break;
+  
+                             case Scanner.Token.TRUNC:
+                                  Console.clear();
+                                  Console.echo(help_trunc);
+                                  break;
+
+                             case Scanner.Token.UCASE:
+                                  Console.clear();
+                                  Console.echo(help_ucase);
+                                  break;
+
+                             case Scanner.Token.UNTIL:
+                                  Console.clear();
+                                  Console.echo(help_until);
+                                  break;
+
+                             case Scanner.Token.VAL:
+                                  Console.clear();
+                                  Console.echo(help_val);
+                                  break;
+
+                             case Scanner.Token.WHILE:
+                                  Console.clear();
+                                  Console.echo(help_while);
+                                  break;
+ 
+                             default:
+                                  Console.echo("bad syntax\n");
+                          }
+                          break;
+
+                     case Scanner.Token.ID:
+                          Console.echo("bad command\n");
+                          break;
+
+                     case Scanner.Token.INTLIT:
+                          var num = parseInt(Scanner.Token.lexeme);
+                          var c, i = 0;
+                          while ((c = line.charAt(i)) >= "0" && c <= "9")
+                             i++;
+                          var text = line.substring(i).trim();
+                          if (text == "")
+                             BASICI.removeLine(num);
+                          else
+                          {
+                             var line = BASICI.findLine(num);
+                             if (line == null)
+                                BASICI.addLine(num, text);
+                             else
+                                line.text = text;
+                          }
+                          break;
+
+                     case Scanner.Token.KILL:
+                          Scanner.scan();
+                          if (Scanner.Token.type != Scanner.Token.ID)
+                          {
+                             Console.echo("identifier expected\n");
+                             Console.echo(">");
+                             return;
+                          }
+                          var arg = Scanner.Token.lexeme.toLowerCase() + ".bas";
+                          if (arg.charAt(0) == "_")
+                          {
+                             Console.echo("cannot kill " + arg + "\n");
+                             Console.echo(">");
+                             return;
+                          }
+                          var txtFile = new XMLHttpRequest();
+                          var url = "http://tutortutor.ca/";
+                          url += "cgi-bin/BBASIC_kill.php?name=" + arg;
+                          txtFile.open("GET", url);
+                          txtFile.onreadystatechange = function()
+                          {
+                             if (txtFile.readyState == 4) 
+                             {
+                                if (txtFile.status != 200)
+                                   Console.echo("cannot kill: I/O problem\n");
+                                Console.echo(">");
+                                mode = 0;
+                                return;
+                             }
+                          }
+                          txtFile.send(null);
+                          mode = 2;
+                          return;
+
+                     case Scanner.Token.LIST:
+                          Scanner.scan();
+                          switch (Scanner.Token.type)
+                          {
+                             case Scanner.Token.EOLN:
+                                  BASICI.list(-1, -1);
+                                  break;
+
+                             case Scanner.Token.INTLIT:
+                                  var begnum = parseInt(Scanner.Token.lexeme);
+                                  Scanner.scan();
+                                  if (Scanner.Token.type == Scanner.Token.EOLN)
+                                  {
+                                     BASICI.list(begnum, begnum);
+                                     break;
+                                  }
+                                  if (Scanner.Token.type == Scanner.Token.MINUS)
+                                  {
+                                     Scanner.scan();
+                                     if (Scanner.Token.type == 
+                                         Scanner.Token.EOLN)
+                                     {
+                                        BASICI.list(begnum, -1);
+                                        break;
+                                     }
+                                     if (Scanner.Token.type == 
+                                         Scanner.Token.INTLIT)
+                                     {
+                                        var endnum;
+                                        endnum = parseInt(Scanner.Token.lexeme);
+                                        BASICI.list(begnum, endnum);
+                                        break;
+                                     }
+                                  }
+                                  Console.echo("bad syntax\n");
+                                  break;
+
+                             case Scanner.Token.MINUS:
+                                  Scanner.scan();
+                                  if (Scanner.Token.type == Scanner.Token.INTLIT)
+                                  {
+                                     var endnum;
+                                     endnum = parseInt(Scanner.Token.lexeme);
+                                     BASICI.list(-1, endnum);
+                                     break;
+                                  }
+                                  Console.echo("bad syntax\n");
+                          }
+                          break;
+
+                     case Scanner.Token.LOAD:
+                          Scanner.scan(); // Get rid of any extra text
+                          document.getElementById('fileInput').click();
+                          return;
+
+                     case Scanner.Token.NEW:
+                          BASICI.new();
+                          break;
+
+                     case Scanner.Token.RENUM:
+                          BASICI.renum();
+                          break;
+
+                     case Scanner.Token.RUN:
+                          if (BASICI.run())
+                          {
+                             mode = 1; // run
+                             return;
+                          }
+                          break;
+
+                     case Scanner.Token.SAVE:
+                          Scanner.scan();
+                          if (Scanner.Token.type != Scanner.Token.ID)
+                          {
+                             Console.echo("identifier expected\n");
+                             Console.echo(">");
+                             return;
+                          }
+                          var arg = Scanner.Token.lexeme.toLowerCase() + ".bas";
+                          if (arg.charAt(0) == "_")
+                          {
+                             Console.echo("cannot save to " + arg + "\n");
+                             Console.echo(">");
+                             return;
+                          }
+                          var txtFile = new XMLHttpRequest();
+                          var url = "http://tutortutor.ca/";
+                          url += "cgi-bin/BBASIC_save.php";
+                          txtFile.open("POST", url);
+                          var listing = escape(BASICI.getListing()).
+                                        replace(new RegExp("\\+", "g"), "%2B");
+                          arg = "name=" + arg + "&listing=" + listing;
+                          txtFile.setRequestHeader("Content-type", 
+                                                   "application/" +
+                                                   "x-www-form-urlencoded");
+                          txtFile.setRequestHeader("Content-length", 
+                                                   arg.length);
+                          txtFile.setRequestHeader("Connection", "close");
+                          txtFile.onreadystatechange = function()
+                          {
+                             if (txtFile.readyState == 4) 
+                             {
+                                Console.echo(txtFile.responseText);
+                                Console.echo(">");
+                                mode = 0;
+                                return;
+                             }
+                          };
+                          txtFile.send(arg);
+                          mode = 2;
+                          return;
+
+                     default:
+                          Console.echo("bad syntax\n");
+                  }
+                  Console.echo(">");
+                  return;
+               }
+            }
+            if (mode == 1)
+            {
+               if (!BASICI.run())
+               {
+                  mode = 0;
+                  Console.showCursor(); // .. in case it is hidden.
+                  Console.echo(">");
+               }
+            }
+         }
+         setInterval("tick()", 15); // Invoke tick() every 15 milliseconds.
+      </script>
+   </body>
+</html>
+
+
